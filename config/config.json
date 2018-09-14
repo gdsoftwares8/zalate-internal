@@ -1,0 +1,30 @@
+{
+    "development": {
+      "dbUrl": "mongodb://gdsoftware:JQVAQjuR7f@ds251022.mlab.com:51022/zatale_dev",
+      "passport": {
+        "secret": "fry1egg2secret1json5565b5a5"
+      },
+      "session": {
+        "secret": "mySecretKey"
+      }
+    },
+    "test": {
+      "dbUrl": "mongodb://gdsoftware:JQVAQjuR7f@ds251022.mlab.com:51022/zatale_dev",
+      "passport": {
+        "secret": "fry1egg2secret1json5565b5a5"
+      },
+      "session": {
+        "secret": "mySecretKey"
+      }
+    },
+    "production": {
+      "dbUrl": "mongodb://gdsoftware:JQVAQjuR7f@ds251022.mlab.com:51022/zatale_dev",
+      "passport": {
+        "secret": "fry1egg2secret1json5565b5a5"
+      },
+      "session": {
+        "secret": "mySecretKey"
+      }
+    }
+  }
+  
