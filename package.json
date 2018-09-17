@@ -1,12 +1,13 @@
 {
   "name": "zalate",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "private": true,
   "scripts": {
     "start": "nodemon --inspect ./bin/www",
     "start:prod": "NODE_ENV=production node ./bin/www"
   },
   "dependencies": {
+    "async": "^2.0.1",
     "aws-sdk": "^2.40.0",
     "babel-core": "^6.24.1",
     "bcrypt-nodejs": "*",
@@ -50,6 +51,7 @@
     "s3": "^4.4.0",
     "s3fs": "^2.5.0",
     "sanitize-html": "^1.14.1",
+    "socket.io": "^2.1.1",
     "socket.io-client": "^2.0.3",
     "socketio": "^1.0.0",
     "speakeasy": "^2.0.0",
