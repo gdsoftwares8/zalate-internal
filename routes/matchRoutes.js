@@ -4,7 +4,6 @@ var express = require('express');
 var router = express.Router();
 var authController = require('../controllers').authController;
 const passport = require('passport');
-var InviteCode = require('../models/inviteCode');
 var jwt = require('jsonwebtoken');
 const logger = require('../logger');
 var User = require('../models/user');

@@ -6,13 +6,13 @@ var async = require('async');
 var bCrypt = require('bcrypt-nodejs');
 var request = require('request');
 const logger = require('../logger');
-var InviteCode = require('../models/inviteCode');
-var AppUtil = require('../controllers/apputil');
+var AppUtil = require('../controllers/AppUtill');
 var EmailService = require('../controllers/EmailService');
 var Response = require('../controllers/Response');
 var getDeviceTypeIdBySortName = require('../models/deviceToken').getDeviceTypeIdBySortName;
 var MAX_DEVICE_LIMIT = 30;
 var DEVICE_TYPE_IDS = require('../models/deviceToken').DEVICE_TYPE_IDS;
+var ADMIN_KEY = require('../models/user').ADMIN_KEY;
 
 function rollback(doc, callback) {
     //check if its a doc
@@ -28,37 +28,28 @@ function rollback(doc, callback) {
 module.exports = function (passport) {
     passport.use('signup', new JsonStrategy({
             passReqToCallback: true // allows us to pass back the entire request to the callback
-        }, (req, username, password, done) => {
+        }, function (req, username, password, done) {
 
-
-            email = req.body.email.toLowerCase();
-            logger.debug('Attempting to sign up email: ' + email);
+            var email = req.body.email.toLowerCase();
 
             findOrCreateUser = function () {
-                console.log('Find or create called');
-                // find a user in Mongo with provided email
-                User.findOne({'email': {$regex: new RegExp("^" + email.toLowerCase(), "i")}}).then(user => {
-                    // already exists
-                    console.log('Made it to user');
-                    if (user) {
-                        console.log('User already exists with email: ' + email);
+                User.count({email: {$regex: new RegExp("^" + email.toLowerCase(), "i")}}, function (err, count) {
+                    if (err) {
+                        return done(err);
+                    } else if (count) {
                         return done(null, false, console.log('message', 'User Already Exists'));
-                    }
-
-
-                    else {
-
-
+                    } else {
                         // Create the user
                         var newUser = new User();
                         var specialId = email.substring(1, 4) + Date.now();
-                        // set the user's local credentials
-                        var setPassword = createHash(password);
-
-                        //Create new user
                         newUser.id = specialId;
-                        newUser.password = setPassword;
-                        newUser.role = USER_ROLE.CLIENT;
+                        newUser.password = password;
+                        if (req.body.adminkey == ADMIN_KEY) {
+                            newUser.userType = USER_ROLE.ADMIN;
+                            newUser.verified = true;
+                        } else {
+                            newUser.userType = USER_ROLE.CLIENT;
+                        }
                         newUser.email = email;
                         newUser.firstName = req.body.firstName;
                         newUser.lastName = req.body.lastName;
@@ -73,22 +64,6 @@ module.exports = function (passport) {
 
                         newUser.pwResetToken = guid;
                         newUser.pwResetOTP = otp;
-                        // newUser.otpDate = new Date().getTime();
-                        // save the user
-                        /* newUser.save(function (err) {
-                             if (err) {
-                                 logger.error('Error in Saving user: ' + err);
-                                 throw err;
-                             }
-                             else {
-
-                                 registerToken(req, done, newUser);
-                                 /!* logger.info('User Registration succesful');
-                                  console.log('New User Sccessfully Made');
-                                  return done(null, newUser);*!/
-                             }
-
-                         });*/
                         async.parallelLimit([
                                 function (callback) {
                                     newUser.save(callback);
@@ -99,21 +74,15 @@ module.exports = function (passport) {
                                     async.each(results, rollback, function () {
                                         console.log('Rollback done.');
                                     });
-                                    console.log('error ', err);
-                                    logger.error('Error in Saving user: ' + err);
-                                    throw err;
+                                    done(err);
                                 } else {
                                     sendOtpToMail(newUser.firstName, newUser.pwResetOTP, newUser.email);
                                     registerToken(req, done, newUser);
                                 }
                             });
+
                     }
-                }).catch(err => {
-                    logger.error('Error in Sign Up: ' + err);
-                    return done(err);
-                })
-
-
+                });
             };
 
             // Delay the execution of findOrCreateUser and execute the method
@@ -123,13 +92,7 @@ module.exports = function (passport) {
 
         })
     );
-
-    // Generates hash using bCrypt
-    var createHash = function (password) {
-        return bCrypt.hashSync(password, bCrypt.genSaltSync(10), null);
-    }
-
-}
+};
 
 
 var sendOtpToMail = function (name, otp, email) {
@@ -167,86 +130,77 @@ var registerToken = function (req, done, newUser) {
     var osVersion = req.body.osVersion;
     var appVersion = req.body.appVersion;
 
-    // 1. check valid device name
-    if (deviceType == 'a' || deviceType == 'i' || deviceType == 'b') {
-        deviceType = getDeviceTypeIdBySortName(deviceType);
-        var checkAndSaveDeviceToken = function () {
-            //3.get all registered devices
-            DeviceToken.find({userID: userID}, function (err, regDeviceList) {
-                if (err) {
-                    return done(err);
-                } else {
+    deviceType = getDeviceTypeIdBySortName(deviceType);
+    var checkAndSaveDeviceToken = function () {
+        //3.get all registered devices
+        DeviceToken.find({userID: userID}, function (err, regDeviceList) {
+            if (err) {
+                return done(err);
+            } else {
 
-                    var deviceToken = null;
-                    var needToSave = true;
-                    var errorMessage = '';
-                    var mobileDevices = 0;//count the users mobile devices
-                    //4.Check if device already there
-                    for (var i = 0; i < regDeviceList.length; i++) {
-                        var device = regDeviceList[i];
-                        if (device.deviceType != 'b') {
-                            mobileDevices++;
-                        }
-                        if (device.uid == uid && device.deviceType == deviceType) {
-                            needToSave = false;
-                            deviceToken = device;
-                            break;
-                        }
+                var deviceToken = null;
+                var needToSave = true;
+                var errorMessage = '';
+                var mobileDevices = 0;//count the users mobile devices
+                //4.Check if device already there
+                for (var i = 0; i < regDeviceList.length; i++) {
+                    var device = regDeviceList[i];
+                    if (device.deviceType != 'b') {
+                        mobileDevices++;
                     }
-                    //5. Check if Max device limit reached.
-                    if (deviceType != 'b' && needToSave && mobileDevices >= MAX_DEVICE_LIMIT) {
+                    if (device.uid == uid && device.deviceType == deviceType) {
                         needToSave = false;
-                        errorMessage = "You have already login maximum limit of devices.";
+                        deviceToken = device;
+                        break;
                     }
-                    if (needToSave) {
-                        // console.info('saving new device token');
-                        //6. Save the device token
-                        deviceToken = new DeviceToken({
-                            userID: userID,
-                            deviceType: deviceType,
-                            deviceTokenID: deviceTokenID,
-                            deviceName: deviceFullName,
-                            uid: uid,
-                            sandbox: isSandbox,
-                            socialToken: socialToken
-                        });
-                    }
-                    newUser.loginToken = deviceToken._id;
-                    //check token was empty or not
-                    newUser.deviceRegistered = deviceTokenID != '';
-                    // saveDevice(deviceToken);
-                    deviceTokenID = deviceTokenID.replace(/ /g, ''); //remove space if there for iOS
-                    deviceToken.deviceTokenID = deviceTokenID;
-                    deviceToken.save(function (err) {
-                        if (err) {
-                            return done(err);
-                        } else {
-                            return done(null, newUser);
-                        }
+                }
+                //5. Check if Max device limit reached.
+                if (deviceType != 'b' && needToSave && mobileDevices >= MAX_DEVICE_LIMIT) {
+                    needToSave = false;
+                    errorMessage = "You have already login maximum limit of devices.";
+                }
+                if (needToSave) {
+                    // console.info('saving new device token');
+                    //6. Save the device token
+                    deviceToken = new DeviceToken({
+                        userID: userID,
+                        deviceType: deviceType,
+                        deviceTokenID: deviceTokenID,
+                        deviceName: deviceFullName,
+                        uid: uid,
+                        osVersion: osVersion,
+                        appVersion: appVersion
                     });
                 }
-            });
-        };
-        if (uid != '') {
-            var queryRemove = {
-                //userID: {$ne: userID},
-                deviceType: deviceType,
-                uid: uid
-            };
-            //2. Remove if this device was registered by other user also.
-            DeviceToken.findOneAndRemove(queryRemove, function (err, oldDevice) {
-                if (err) {
-                    return done(err);
-                } else {
-                    checkAndSaveDeviceToken();
-                }
-            });
+                newUser.loginToken = deviceToken._id;
+                //check token was empty or not
+                newUser.deviceRegistered = deviceTokenID != '';
+                // saveDevice(deviceToken);
+                deviceTokenID = deviceTokenID.replace(/ /g, ''); //remove space if there for iOS
+                deviceToken.deviceTokenID = deviceTokenID;
+                deviceToken.save(function (err) {
+                    if (err) {
+                        return done(err);
+                    } else {
+                        return done(null, newUser, {"message": "Successfully Added!"});
+                    }
+                });
+            }
+        });
+    };
+
+    var queryRemove = {
+        deviceType: deviceType,
+        uid: uid
+    };
+    //2. Remove if this device was registered by other user also.
+    DeviceToken.findOneAndRemove(queryRemove, function (err, oldDevice) {
+        if (err) {
+            return done(err);
         } else {
             checkAndSaveDeviceToken();
         }
-    } else {
-        return done(err);
-    }
+    });
 };
 
 

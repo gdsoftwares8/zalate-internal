@@ -4,80 +4,11 @@ var express = require('express');
 var router = express.Router();
 var authController = require('../controllers').authController;
 const passport = require('passport');
-var InviteCode = require('../models/inviteCode');
 var jwt = require('jsonwebtoken');
 const logger = require('../logger');
 var User = require('../models/user');
 var Match = require('../models/match');
 
-//Admin create a new invite code
-router.post('/invite', function(req, res){
-	jwt.verify(req.headers.token, 'fry1egg2secret1json5565b5a5', function(err, decoded) {
-		if (decoded){
-			if (decoded.role=='admin'){
-				console.log('Decoded admin');
-				var newInvite = new InviteCode();
-				newInvite.id = req.body.id;
-				//Save Invite Code
-				newInvite.save(function (err) {
-					if (err) {
-						logger.error('Error in saving invite code: ' + err);
-						throw err;
-					}
-					else{
-						logger.info('Invite code creation succesful');
-						console.log('Invite Code Sccessfully Made')
-						res.json({
-							message: 'Success with code creation'
-						});
-					}
-				});
-			}
-			if(decoded.role!='admin'){
-				res.json({
-					message: 'admin permission required'
-				})
-			}
-		}
-		if (err){
-			console.log(err);
-			res.json(err);
-		}	
-	})
-});
-
-
-
-
-//Admin delete an invite code
-router.delete('/invite/:id', function(req, res){
-	jwt.verify(req.headers.token, 'fry1egg2secret1json5565b5a5', function(err, decoded) {
-		if (decoded){
-			if (decoded.role=='admin'){
-				console.log('Decoded');
-				InviteCode.findOneAndRemove({id: req.params.id}, function(err, invite){
-					if(err){
-						console.log(err);
-						res.json(err);
-					}
-					if(invite){
-						res.json({
-							message: 'Delete it: '+invite
-						})
-					}
-				})
-			}
-			if(decoded.role!='admin'){
-				res.json({
-					message: 'admin permission required'
-				})
-			}
-		}
-		if (err){
-			console.log(err);
-		}	
-	})
-});
 
 
 
