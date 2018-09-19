@@ -8,6 +8,12 @@ const path = require('path');
 const env = process.env.NODE_ENV || "development";
 const config = require(path.join(__dirname, '../config', 'config.json'))[env];
 var Response = require('../controllers/Response');
+var getDeviceTypeIdBySortName = require('../models/deviceToken').getDeviceTypeIdBySortName;
+var MAX_DEVICE_LIMIT = 30;
+var DEVICE_TYPE_IDS = require('../models/deviceToken').DEVICE_TYPE_IDS;
+var ADMIN_KEY = require('../models/user').ADMIN_KEY;
+var DeviceToken = require('../models/deviceToken').DeviceToken;
+
 
 const createUser = function (req, res, next) {
 
@@ -26,34 +32,7 @@ const loginUser = function (req, res, next) {
             var response = Response.createResponse(Response.RequestStatus.Fail, errorMessage, []);
             return res.status(200).json(response);
         } else {
-
-            let longSignIn = 900000;
-
-            if (req.body.remember) {
-                if (req.body.remember == true) {
-                    longSignIn = 99999999;
-                    logger.debug('New sign in is long: ', longSignIn);
-                }
-                if (req.body.remember == false) {
-                    longSignIn = 900000;
-                }
-                else {
-                    longSignIn = 900000;
-                }
-            }
-
-            return res.status(200).send({
-                success: true,
-                email: user.email,
-                pwResetToken: user.pwResetToken,
-                userType: user.userType,
-                token: jwt.sign({
-                    exp: Math.floor(Date.now() / 1000) + longSignIn,
-                    email: user.email,
-                    role: user.role,
-                    id: user.id
-                }, config.passport.secret)
-            });
+            registerToken(req, res, user);
         }
     }).catch(err => {
         // In case of any error, return using the done method
@@ -102,8 +81,8 @@ const verifyJwt = (req, res, next) => {
     });
 }
 
-var registerToken = function (req, res, newUser) {
-    var userID = newUser.id;
+var registerToken = function (req, res, user) {
+    var userID = user.id;
     var deviceTokenID = req.body.deviceTokenID || '';
     var deviceName = req.body.deviceName || "Browser";//Android || IOS || Chrome || Browser
     var deviceType = deviceName.substring(0, 1).toLowerCase();
@@ -117,7 +96,7 @@ var registerToken = function (req, res, newUser) {
         //3.get all registered devices
         DeviceToken.find({userID: userID}, function (err, regDeviceList) {
             if (err) {
-                return done(err);
+                return res.send(500, err);
             } else {
 
                 var deviceToken = null;
@@ -139,7 +118,6 @@ var registerToken = function (req, res, newUser) {
                 //5. Check if Max device limit reached.
                 if (deviceType != 'b' && needToSave && mobileDevices >= MAX_DEVICE_LIMIT) {
                     needToSave = false;
-                    errorMessage = "You have already login maximum limit of devices.";
                 }
                 if (needToSave) {
                     // console.info('saving new device token');
@@ -154,17 +132,41 @@ var registerToken = function (req, res, newUser) {
                         appVersion: appVersion
                     });
                 }
-                newUser.loginToken = deviceToken._id;
+                user.loginToken = deviceToken._id;
                 //check token was empty or not
-                newUser.deviceRegistered = deviceTokenID != '';
+                user.deviceRegistered = deviceTokenID != '';
                 // saveDevice(deviceToken);
                 deviceTokenID = deviceTokenID.replace(/ /g, ''); //remove space if there for iOS
                 deviceToken.deviceTokenID = deviceTokenID;
                 deviceToken.save(function (err) {
                     if (err) {
-                        return done(err);
+                        return res.send(500, err);
                     } else {
-                        return done(null, newUser, {"message": "Successfully Added!"});
+                        let longSignIn = 900000;
+                        if (req.body.remember) {
+                            if (req.body.remember == true) {
+                                longSignIn = 99999999;
+                                logger.debug('New sign in is long: ', longSignIn);
+                            }
+                            if (req.body.remember == false) {
+                                longSignIn = 900000;
+                            }
+                            else {
+                                longSignIn = 900000;
+                            }
+                        }
+                        return res.status(200).send({
+                            success: true,
+                            email: user.email,
+                            pwResetToken: user.pwResetToken,
+                            userType: user.userType,
+                            token: jwt.sign({
+                                exp: Math.floor(Date.now() / 1000) + longSignIn,
+                                email: user.email,
+                                role: user.role,
+                                id: user.id
+                            }, config.passport.secret)
+                        });
                     }
                 });
             }
@@ -178,7 +180,7 @@ var registerToken = function (req, res, newUser) {
     //2. Remove if this device was registered by other user also.
     DeviceToken.findOneAndRemove(queryRemove, function (err, oldDevice) {
         if (err) {
-            return done(err);
+            return res.send(500, err);
         } else {
             checkAndSaveDeviceToken();
         }

@@ -1,5 +1,5 @@
 const login = require('./login');
-const User = require('../models/user');
+const User = require('../models/user').USER;
 
 const signupadmin = require('./signupAdmin');
 const signup = require('./signup');
