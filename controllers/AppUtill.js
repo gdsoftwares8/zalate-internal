@@ -23,6 +23,13 @@ var isStringEmpty = function (str) {
     return true;
 };
 
+var isNumber = function (o) {
+    if (typeof o === 'number')
+        return true;
+    return !isNaN(o - 0) && o !== null && o.replace(/^\s\s*/, '') !== "" && o !== false;
+};
+
 exports.guid = guid;
 exports.generateNewOtp = generateNewOtp;
 exports.isStringEmpty = isStringEmpty;
+exports.isNumber = isNumber;

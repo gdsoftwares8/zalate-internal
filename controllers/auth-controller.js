@@ -163,7 +163,7 @@ var registerToken = function (req, res, user) {
                             token: jwt.sign({
                                 exp: Math.floor(Date.now() / 1000) + longSignIn,
                                 email: user.email,
-                                role: user.role,
+                                userType: user.userType,
                                 id: user.id
                             }, config.passport.secret)
                         });
